@@ -7,7 +7,8 @@ from collections import defaultdict
 
 # Whitelist of known acceptable variations (case-insensitive)
 WHITELIST = {
-    # 'musculoskeletal': ['musculoskeletal', 'Musculoskeletal'],
+    'Ultrasound': ['MicroUltrasound', 'Ultrasound'],
+    'General': ['General', 'General MSK'],
 }
 
 def extract_categories(df, column):
