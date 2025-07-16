@@ -5,7 +5,7 @@ import { prefix } from "lib/prefix"
 import { parseFile } from "lib/csv"
 import { Popover } from "@headlessui/react"
 import { usePopper } from "react-popper"
-import { booleanColumnSearch, booleanMultiColumnSearch, nameSort, textSearch } from "lib/sort"
+import { booleanColumnSearch, valueColumnSearch, commaSeparatedValueSearch, nameSort, textSearch } from "lib/sort"
 import Container from "components/Container"
 import Footer from "components/Footer"
 import Header from "components/Header"
@@ -16,7 +16,7 @@ const Introduction = () => (
       <div className="flex-1 flex flex-col justify-center py-6 sm:py-12">
          <Container>
             <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-center tracking-tighter leading-tight text-gray-800">
-               A collection of open source imaging data sets.
+               A collection of open access ultrasound imaging data sets.
             </h1>
          </Container>
       </div>
@@ -25,7 +25,7 @@ const Introduction = () => (
 
 const EntryTags = ({ entry, column, bgColor, textColor, limit = 3 }) => {
 
-   // Propper config 
+   // Propper config
    let [referenceElement, setReferenceElement] = useState()
    let [popperElement, setPopperElement] = useState()
    let { styles, attributes } = usePopper(referenceElement, popperElement, {
@@ -40,13 +40,13 @@ const EntryTags = ({ entry, column, bgColor, textColor, limit = 3 }) => {
       ]
    })
 
-   // Tag processing 
-   const types = Object.keys(entry).filter((key) => key.includes(column))
-   const matches = types.filter(type => entry[type] === "TRUE").map(tag => tag.replace(column + ' - ', ''))
+   // Tag processing for comma-separated values
+   const entryValue = entry[column]
+   const matches = entryValue ? entryValue.split(',').map(item => item.trim()).filter(Boolean) : []
    const overflow = matches.slice(limit, matches.length + 1)
    const badgeClass = `${bgColor ? bgColor : 'bg-green-500'} ${textColor ? textColor : 'text-white'} text-xs rounded px-2 py-1 flex-shrink-0`
 
-   // Render 
+   // Render
    return (
       <div className="flex flex-shrink-0 space-x-2 mt-3">
          {
@@ -94,7 +94,7 @@ const EntryTags = ({ entry, column, bgColor, textColor, limit = 3 }) => {
 
 const DataList = ({ query, setQuery }) => {
 
-   // Local state 
+   // Local state
    const [headers, setHeaders] = useState([])
    const [data, setData] = useState([])
    const [showFilters, setShowFilters] = useState(false)
@@ -111,47 +111,69 @@ const DataList = ({ query, setQuery }) => {
 
       // Result set
       let results = data
-      let filterTypeCount = 0
 
-      // Text search 
+      // Text search
       if (query)
          results = results.filter(item1 => textSearch(query, data).some(item2 => item1['Name'] === item2['Name']))
 
-      // Column filters
-      if (columnFilters) {
-         for (const [type, _] of Object.entries(columnFilters)) {
-            if (activeFilters[type] && activeFilters[type][0] !== '')
-               results = results.filter(item1 => booleanMultiColumnSearch(type, activeFilters[type], data).some(item2 => item1['Name'] === item2['Name']))
-         }
+      // Column filters for comma-separated values
+      if (activeFilters['Area of body'] && activeFilters['Area of body'][0] !== '') {
+         results = results.filter(item1 => commaSeparatedValueSearch('Area of body', activeFilters['Area of body'], data).some(item2 => item1['Name'] === item2['Name']))
+      }
+
+      if (activeFilters['Imaging type'] && activeFilters['Imaging type'][0] !== '') {
+         results = results.filter(item1 => commaSeparatedValueSearch('Imaging type', activeFilters['Imaging type'], data).some(item2 => item1['Name'] === item2['Name']))
       }
 
       // Access
       if (activeFilters['access'] && activeFilters['access'][0] !== '') {
-         results = results.filter(item1 => (Object.keys(activeFilters).map(key => booleanColumnSearch(activeFilters[key], data)).filter(result => result.length > 0)[0]).some(item2 => item1['Name'] === item2['Name']))
+         const accessValue = activeFilters['access'][0]
+         results = results.filter(item1 => booleanColumnSearch(accessValue, data).some(item2 => item1['Name'] === item2['Name']))
       }
 
-      // Merge and return 
+      // Merge and return
       return results
    }
 
-   // Computed data
-   const columnFilters = useMemo(() => ({
-      'Area of body': headers.length > 0 ? headers.filter(header => header.includes('Area of body')).map(header => header.split(' - ')[1]) : [],
-      'Imaging type': headers.length > 0 ? headers.filter(header => header.includes('Imaging type')).map(header => header.split(' - ')[1]) : [],
-   }), [headers])
+   // Computed data for comma-separated values
+   const columnFilters = useMemo(() => {
+      if (data.length === 0) return { 'Area of body': [], 'Imaging type': [] }
+
+      // Extract all values from comma-separated lists
+      const areaOfBodyValues = [...new Set(
+         data.flatMap(entry =>
+            entry['Area of body'] ?
+               entry['Area of body'].split(',').map(item => item.trim()).filter(Boolean) :
+               []
+         )
+      )]
+
+      const imagingTypeValues = [...new Set(
+         data.flatMap(entry =>
+            entry['Imaging type'] ?
+               entry['Imaging type'].split(',').map(item => item.trim()).filter(Boolean) :
+               []
+         )
+      )]
+
+      return {
+         'Area of body': areaOfBodyValues,
+         'Imaging type': imagingTypeValues,
+      }
+   }, [data])
    const accessFilters = ['Open access', 'Access on application', 'Commercial access']
    const filteredData = useMemo(() => filterData(), [data, activeFilters, columnFilters, query])
 
-   // Get marker data, parse + store 
+   // Get marker data, parse + store
    const getData = async () => {
 
-      // Parse file 
+      // Parse file
       const data = await parseFile('/data/snapshot-dataset.csv')
 
       // Remove headers
       const headers = data.shift()
 
-      // Loop and create associative array 
+      // Loop and create associative array
       let rows = []
       for (let i = 0; i < data.length; i++) {
          rows[i] = []
@@ -163,7 +185,7 @@ const DataList = ({ query, setQuery }) => {
       // Set headers
       setHeaders(headers)
 
-      // Set data 
+      // Set data
       setData([...rows.sort(nameSort)])
 
    }
@@ -340,7 +362,7 @@ const DataList = ({ query, setQuery }) => {
 
 export default function Home() {
 
-   // Local state 
+   // Local state
    const [query, setQuery] = useState('')
 
    return (
