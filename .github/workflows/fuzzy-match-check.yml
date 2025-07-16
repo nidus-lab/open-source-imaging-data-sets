@@ -1,0 +1,47 @@
+name: Fuzzy Match Checker
+
+on:
+  push:
+    paths:
+      - 'public/data/snapshot-dataset.csv'
+      - 'fuzzy_match_checker.py'
+  pull_request:
+    paths:
+      - 'public/data/snapshot-dataset.csv'
+      - 'fuzzy_match_checker.py'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  check-dataset:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        pip install pandas fuzzywuzzy python-Levenshtein
+
+    - name: Run fuzzy match checker
+      run: |
+        python fuzzy_match_checker.py
+
+    - name: Check for errors
+      run: |
+        # Run the checker and capture output
+        output=$(python fuzzy_match_checker.py 2>&1)
+
+        # If there's any output, it means there are errors
+        if [ -n "$output" ]; then
+          echo "❌ Dataset validation failed. Found the following issues:"
+          echo "$output"
+          exit 1
+        else
+          echo "✅ Dataset validation passed - no typos or inconsistencies found"
+        fi

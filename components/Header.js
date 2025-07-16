@@ -10,24 +10,24 @@ export default function Header() {
             <div className="flex flex-col space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between sm:space-x-4">
                <div className="flex divide-x items-center">
                   <div className="pr-4 flex-shrink-0">
-                     <Link href="https://www.nihr.ac.uk/">
+                     <Link href="https://nidusai.ca">
                         <a target="_blank">
-                           <img src={`${prefix}/nihr-logo.png`} alt="National Institute for Health Research" className="h-6 sm:h-8" />
+                           <img src={`${prefix}/logo-lab.png`} alt="National Institute for Health Research" className="h-6 sm:h-8" />
                         </a>
                      </Link>
                   </div>
                   <div className="pl-4">
-                     <Link href="https://www.nhsx.nhs.uk/ai-lab/">
+                     <Link href="https://radoss.org">
                         <a target="_blank" className="flex flex-col flex-shrink-0 space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:space-x-2">
                            <div>
-                              <img src={`${prefix}/nhs-logo.svg`} className="h-8 sm:h-10" alt="NHS AI Lab" />
+                              <img src={`${prefix}/radoss-logo.png`} className="h-8 sm:h-10" alt="NHS AI Lab" />
                            </div>
                         </a>
                      </Link>
                   </div>
                </div>
                <div className="hidden sm:block">
-                  <Link href="https://github.com/nhsx/open-source-imaging-data-sets">
+                  <Link href="https://github.com/nidus-lab/open-source-imaging-data-sets">
                      <a
                         target="_BLANK"
                         className="rounded-full duration-150 text-black hover:text-gray-800"
