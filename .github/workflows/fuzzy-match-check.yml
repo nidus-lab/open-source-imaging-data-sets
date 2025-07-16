@@ -1,10 +1,6 @@
 name: Fuzzy Match Checker
 
 on:
-  push:
-    paths:
-      - 'public/data/snapshot-dataset.csv'
-      - 'fuzzy_match_checker.py'
   pull_request:
     paths:
       - 'public/data/snapshot-dataset.csv'
