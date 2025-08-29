@@ -61,7 +61,6 @@ npm run export
 Upon merging into `main`, the project is automatically deployed to Github Pages via a Githook Action found in `.github/workflows/gh-pages-deployment.yml`.
 
 ## Licence
-
 Unless stated otherwise, the codebase is released under [the MIT Licence][mit].
 This covers both the codebase and any sample code in the documentation.
 
