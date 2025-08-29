@@ -1,8 +1,29 @@
 import { NextSeo } from "next-seo"
+import { useEffect } from "react"
+import { useRouter } from "next/router"
 
 import 'styles/index.css'
 
 export default function MyApp({ Component, pageProps }) {
+  const router = useRouter()
+
+  useEffect(() => {
+    // Handle GitHub Pages 404 redirect
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const currentRoute = urlParams.get('currentRoute')
+
+      if (currentRoute) {
+        // Remove the currentRoute parameter from the URL
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.delete('currentRoute')
+
+        // Navigate to the route and replace the URL
+        router.replace(`/${currentRoute}`)
+      }
+    }
+  }, [router])
+
   return (
     <>
       <NextSeo
