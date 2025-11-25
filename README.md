@@ -7,6 +7,8 @@ https://github.com/radoss-org/retuve-us-sweep-sim
 
 A list of open source ultrasound imaging datasets, maintained by the [NIDUS Lab](https://www.nidusai.ca/) and the [RadOSS](https://radoss.org/).
 
+> **Have a dataset you would like included?** Please follow the guide in [UPDATING.md](docs/UPDATING.md).
+
 ## How it works
 
 The NIDUS Lab maintain a spreadsheet of open source ultrasound datasets with a number of attributes. When this spreadsheet is updated, a manual export to csv is required, with the resulting csv stored in [`/public/data/snapshot-dataset.csv`](https://github.com/nhsx/open-source-imaging-data-sets/blob/main/public/data/snapshot-dataset.csv).
