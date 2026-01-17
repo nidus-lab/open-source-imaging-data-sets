@@ -106,9 +106,6 @@ const DataList = ({ query, setQuery }) => {
       // Check if we have data to filter
       if (data.length == 0) return []
 
-      // Check we have filters to process
-      if (!accessFilters && !query) return data
-
       // Result set
       let results = data
 
