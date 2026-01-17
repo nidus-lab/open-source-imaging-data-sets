@@ -1,10 +1,10 @@
-name: Fuzzy Match Checker
+name: Dataset Validation
 
 on:
   pull_request:
     paths:
-      - 'public/data/snapshot-dataset.csv'
-      - 'fuzzy_match_checker.py'
+      - 'public/data/ultrasound_dataset_complete.csv'
+      - 'validate_dataset.py'
   workflow_dispatch: # Allow manual triggering
 
 jobs:
@@ -24,14 +24,14 @@ jobs:
       run: |
         pip install pandas fuzzywuzzy python-Levenshtein
 
-    - name: Run fuzzy match checker
+    - name: Run dataset validator
       run: |
-        python fuzzy_match_checker.py
+        python validate_dataset.py
 
     - name: Check for errors
       run: |
         # Run the checker and capture output
-        output=$(python fuzzy_match_checker.py 2>&1)
+        output=$(python validate_dataset.py 2>&1)
 
         # If there's any output, it means there are errors
         if [ -n "$output" ]; then
