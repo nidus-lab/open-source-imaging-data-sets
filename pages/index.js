@@ -114,21 +114,21 @@ const DataList = ({ query, setQuery }) => {
 
       // Text search
       if (query)
-         results = results.filter(item1 => textSearch(query, data).some(item2 => item1['Name'] === item2['Name']))
+         results = results.filter(item1 => textSearch(query, data).some(item2 => (item1['Dataset Name'] || item1['Name']) === (item2['Dataset Name'] || item2['Name'])))
 
       // Column filters for comma-separated values
-      if (activeFilters['Area of body'] && activeFilters['Area of body'][0] !== '') {
-         results = results.filter(item1 => commaSeparatedValueSearch('Area of body', activeFilters['Area of body'], data).some(item2 => item1['Name'] === item2['Name']))
+      if (activeFilters['Clinical Application'] && activeFilters['Clinical Application'][0] !== '') {
+         results = results.filter(item1 => commaSeparatedValueSearch('Clinical Application', activeFilters['Clinical Application'], data).some(item2 => (item1['Dataset Name'] || item1['Name']) === (item2['Dataset Name'] || item2['Name'])))
       }
 
-      if (activeFilters['Imaging type'] && activeFilters['Imaging type'][0] !== '') {
-         results = results.filter(item1 => commaSeparatedValueSearch('Imaging type', activeFilters['Imaging type'], data).some(item2 => item1['Name'] === item2['Name']))
+      if (activeFilters['Modalities'] && activeFilters['Modalities'][0] !== '') {
+         results = results.filter(item1 => commaSeparatedValueSearch('Modalities', activeFilters['Modalities'], data).some(item2 => (item1['Dataset Name'] || item1['Name']) === (item2['Dataset Name'] || item2['Name'])))
       }
 
       // Access
-      if (activeFilters['access'] && activeFilters['access'][0] !== '') {
-         const accessValue = activeFilters['access'][0]
-         results = results.filter(item1 => booleanColumnSearch(accessValue, data).some(item2 => item1['Name'] === item2['Name']))
+      if (activeFilters['licence'] && activeFilters['licence'][0] !== '') {
+         const licenceValue = activeFilters['licence'][0]
+         results = results.filter(item1 => valueColumnSearch('Licence', [licenceValue], data).some(item2 => (item1['Dataset Name'] || item1['Name']) === (item2['Dataset Name'] || item2['Name'])))
       }
 
       // Merge and return
@@ -137,38 +137,46 @@ const DataList = ({ query, setQuery }) => {
 
    // Computed data for comma-separated values
    const columnFilters = useMemo(() => {
-      if (data.length === 0) return { 'Area of body': [], 'Imaging type': [] }
+      if (data.length === 0) return { 'Clinical Application': [], 'Modalities': [], 'Licence': [] }
 
       // Extract all values from comma-separated lists
-      const areaOfBodyValues = [...new Set(
+      const clinicalApplicationValues = [...new Set(
          data.flatMap(entry =>
-            entry['Area of body'] ?
-               entry['Area of body'].split(',').map(item => item.trim()).filter(Boolean) :
+            entry['Clinical Application'] ?
+               entry['Clinical Application'].split(',').map(item => item.trim()).filter(Boolean) :
                []
          )
       )]
 
-      const imagingTypeValues = [...new Set(
+      const modalitiesValues = [...new Set(
          data.flatMap(entry =>
-            entry['Imaging type'] ?
-               entry['Imaging type'].split(',').map(item => item.trim()).filter(Boolean) :
+            entry['Modalities'] ?
+               entry['Modalities'].split(',').map(item => item.trim()).filter(Boolean) :
+               []
+         )
+      )]
+
+      const licenceValues = [...new Set(
+         data.flatMap(entry =>
+            entry['Licence'] ?
+               [entry['Licence'].trim()] :
                []
          )
       )]
 
       return {
-         'Area of body': areaOfBodyValues,
-         'Imaging type': imagingTypeValues,
+         'Clinical Application': clinicalApplicationValues,
+         'Modalities': modalitiesValues,
+         'Licence': licenceValues
       }
    }, [data])
-   const accessFilters = ['Open access', 'Access on application', 'Commercial access']
    const filteredData = useMemo(() => filterData(), [data, activeFilters, columnFilters, query])
 
    // Get marker data, parse + store
    const getData = async () => {
 
       // Parse file
-      const data = await parseFile('/data/snapshot-dataset.csv')
+      const data = await parseFile('/data/ultrasound_dataset_complete.csv')
 
       // Remove headers
       const headers = data.shift()
@@ -220,52 +228,52 @@ const DataList = ({ query, setQuery }) => {
                      </div>
                   </div>
                   {
-                     showFilters && (
-                        <div className="flex flex-col space-y-2 sm:space-y-0 sm:flex-row sm:space-x-4 mt-3 mb-2 sm:items-center">
-                           <div className="flex-1">
-                              <Select
-                                 label="Image Type"
-                                 onSelect={({ value, label }) => setActiveFilters({
-                                    ...activeFilters,
-                                    'Imaging type': [value]
-                                 })}
-                                 options={
-                                    [{ label: 'Select a type', value: '' }].concat(
-                                       columnFilters['Imaging type'].map(entry => ({ value: entry, label: entry }))
-                                    )
-                                 }
-                              />
-                           </div>
-                           <div className="flex-1">
-                              <Select
-                                 label="Area of Body"
-                                 onSelect={({ value, label }) => setActiveFilters({
-                                    ...activeFilters,
-                                    'Area of body': [value]
-                                 })}
-                                 options={
-                                    [{ label: 'Select a type', value: '' }].concat(
-                                       columnFilters['Area of body'].map(entry => ({ value: entry, label: entry }))
-                                    )
-                                 }
-                              />
-                           </div>
-                           <div className="flex-1">
-                              <Select
-                                 label="Access type"
-                                 onSelect={({ value, label }) => setActiveFilters({
-                                    ...activeFilters,
-                                    'access': [value]
-                                 })}
-                                 options={
-                                    [{ label: 'Select a type', value: '' }].concat(
-                                       accessFilters.map(entry => ({ value: entry, label: entry }))
-                                    )
-                                 }
-                              />
-                           </div>
-                        </div>
-                     )
+               showFilters && (
+                  <div className="flex flex-col space-y-2 sm:space-y-0 sm:flex-row sm:space-x-4 mt-3 mb-2 sm:items-center">
+                     <div className="flex-1">
+                        <Select
+                           label="Modalities"
+                           onSelect={({ value, label }) => setActiveFilters({
+                              ...activeFilters,
+                              'Modalities': [value]
+                           })}
+                           options={
+                              [{ label: 'Select a type', value: '' }].concat(
+                                 (columnFilters['Modalities'] || []).map(entry => ({ value: entry, label: entry }))
+                              )
+                           }
+                        />
+                     </div>
+                     <div className="flex-1">
+                        <Select
+                           label="Clinical Application"
+                           onSelect={({ value, label }) => setActiveFilters({
+                              ...activeFilters,
+                              'Clinical Application': [value]
+                           })}
+                           options={
+                              [{ label: 'Select a type', value: '' }].concat(
+                                 (columnFilters['Clinical Application'] || []).map(entry => ({ value: entry, label: entry }))
+                              )
+                           }
+                        />
+                     </div>
+                     <div className="flex-1">
+                        <Select
+                           label="Licence"
+                           onSelect={({ value, label }) => setActiveFilters({
+                              ...activeFilters,
+                              'licence': [value]
+                           })}
+                           options={
+                              [{ label: 'Select a licence', value: '' }].concat(
+                                 (columnFilters['Licence'] || []).map(entry => ({ value: entry, label: entry }))
+                              )
+                           }
+                        />
+                     </div>
+                  </div>
+               )
                   }
                </div>
                <div>
@@ -288,19 +296,19 @@ const DataList = ({ query, setQuery }) => {
                                                 scope="col"
                                                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
                                              >
-                                                Type
+                                                Details
                                              </th>
                                              <th
                                                 scope="col"
                                                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
                                              >
-                                                Focus
+                                                Availability
                                              </th>
                                              <th
                                                 scope="col"
                                                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
                                              >
-                                                Permissions
+                                                Licence / Access
                                              </th>
                                           </tr>
                                        </thead>
@@ -309,32 +317,53 @@ const DataList = ({ query, setQuery }) => {
                                              <tr key={index}>
                                                 <td className="px-6 py-4">
                                                    <div className="flex space-x-2 items-start">
-                                                      <Link href={entry['URL'] ?? '#'}>
-                                                         <a target="_blank" className="block text-sm underline font-medium text-gray-900 duration-100 hover:text-gray-500">{entry['Name'] || '-'}</a>
+                                                      <Link href={entry['Link'] || entry['URL'] || '#'}>
+                                                         <a target="_blank" className="block text-sm underline font-medium text-gray-900 duration-100 hover:text-gray-500">{entry['Dataset Name'] || entry['Name'] || '-'}</a>
                                                       </Link>
                                                    </div>
-                                                   <span className="block text-sm text-gray-500 mt-1">{entry['Data notes']}</span>
+                                                   <span className="block text-sm text-gray-500 mt-1">{entry['Notes'] || entry['Data notes']}</span>
                                                    <div className="flex space-x-2 items-start">
-                                                      <EntryTags entry={entry} column="Imaging type" />
-                                                      <EntryTags entry={entry} column="Area of body" bgColor="bg-blue-500" textColor="text-white" />
+                                                      <EntryTags entry={entry} column="Modalities" />
+                                                      <EntryTags entry={entry} column="Clinical Application" bgColor="bg-blue-500" textColor="text-white" />
+                                                   </div>
+                                                   {entry['DOI'] && (
+                                                      <span className="block text-xs text-gray-400 mt-1">DOI: {entry['DOI']}</span>
+                                                   )}
+                                                   {entry['Source'] && (
+                                                      <span className="block text-xs text-gray-400 mt-1">Source: {entry['Source']}</span>
+                                                   )}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
+                                                   <div>Subjects: {entry['Subjects'] || 'N/A'}</div>
+                                                   <div className="mt-1">Reg. Patients: {entry['Registraition Type of Patients']}</div>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">
+                                                   <div className="flex flex-col space-y-1">
+                                                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${entry['Segmentaitions Available'] === 'Y' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                         Seg: {entry['Segmentaitions Available']}
+                                                      </span>
+                                                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${entry['Landmarks Available'] === 'Y' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                         Landmarks: {entry['Landmarks Available']}
+                                                      </span>
+                                                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${entry['Meshes (STL) Available'] === 'Y' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                         Meshes: {entry['Meshes (STL) Available']}
+                                                      </span>
                                                    </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-gray-500">{entry['Type of Resource']}</td>
-                                                <td className="px-6 py-4 text-sm text-gray-500">{entry['Area of focus']}</td>
-                                                <td className="px-6 py-4 flex flex-col space-y-2 items-start whitespace-nowrap">
-                                                   {entry['Open access'] === "TRUE" && (
-                                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                                         Open Access
+                                                <td className="px-6 py-4 flex flex-col space-y-2 items-start">
+                                                   {entry['Licence'] && (
+                                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 whitespace-normal">
+                                                         {entry['Licence']}
                                                       </span>
                                                    )}
-                                                   {entry['Access on application'] === "TRUE" && (
+                                                   {entry['Tracking / Pose Data'] === 'Y' && (
                                                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                                         Access on Application
+                                                         Tracking Data
                                                       </span>
                                                    )}
-                                                   {entry['Commercial access'] === "TRUE" && (
-                                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                                         Commercial Access
+                                                   {entry['Ground-Truth Transformations'] === 'Y' && (
+                                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                                                         GT Xforms
                                                       </span>
                                                    )}
                                                 </td>

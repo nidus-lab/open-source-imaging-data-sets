@@ -4,7 +4,7 @@ This guide explains how to add new datasets to the open-source imaging datasets 
 
 ## Overview
 
-The website is controlled by a CSV file located at [`public/data/snapshot-dataset.csv`](../public/data/snapshot-dataset.csv). When you update this file and merge your changes to the `main` branch, the website will automatically update via the CI/CD pipeline.
+The website is controlled by a CSV file located at [`public/data/ultrasound_dataset_complete.csv`](../public/data/ultrasound_dataset_complete.csv). When you update this file and merge your changes to the `main` branch, the website will automatically update via the CI/CD pipeline.
 
 ## Step-by-Step Process
 
@@ -27,21 +27,26 @@ git checkout -b add-<dataset-name>-dataset
 
 ### 3. Update the CSV File
 
-Open [`public/data/snapshot-dataset.csv`](../public/data/snapshot-dataset.csv) and add your new dataset(s) following the existing format.
+Open [`public/data/ultrasound_dataset_complete.csv`](../public/data/ultrasound_dataset_complete.csv) and add your new dataset(s) following the existing format.
 
 The CSV file has the following columns:
-- **Name**: The name of the dataset
-- **URL**: Link to the dataset
-- **Area of body**: Body area covered (e.g., "General MSK", "Hip", "Cardiac")
-- **Imaging type**: Type of imaging (e.g., "Ultrasound, 2D", "Ultrasound, Video")
-- **Type of Resource**: Category (e.g., "Dataset", "Utility")
-- **Open access**: TRUE/FALSE
-- **Access on application**: TRUE/FALSE
-- **Commercial access**: TRUE/FALSE
-- **Area of focus**: Specific focus area
-- **Data notes**: Description or notes about the dataset
+- **Dataset Name**: The name of the dataset
+- **Modalities**: Type of ultrasound (e.g., "US", "US (2D)", "US (Video)")
+- **Clinical Application**: Body area or application (e.g., "Liver Cancer", "Prostate")
+- **Registraition Type of Patients**: Registration type (Y/N)
+- **Segmentaitions Available**: Are segmentations available? (Y/N)
+- **Landmarks Available**: Are landmarks available? (Y/N)
+- **Meshes (STL) Available**: Are meshes available? (Y/N)
+- **Tracking / Pose Data**: Is tracking data available? (Y/N)
+- **Ground-Truth Transformations**: Are GT transforms available? (Y/N)
+- **Subjects**: Number of subjects
+- **Link**: URL to the dataset
+- **Source**: Institution or source of data
+- **DOI**: Digital Object Identifier
+- **Licence**: Licensing information (e.g., CC BY 4.0)
+- **Notes**: Extra information
 
-**Important**: 
+**Important**:
 - Maintain the CSV format (comma-separated values)
 - Ensure all required fields are filled
 - Follow the existing naming conventions and formatting
@@ -52,7 +57,7 @@ The CSV file has the following columns:
 Stage and commit your changes:
 
 ```bash
-git add public/data/snapshot-dataset.csv
+git add public/data/ultrasound_dataset_complete.csv
 git commit -m "Adds new dataset(s): [Dataset Name(s)]"
 ```
 
@@ -85,11 +90,10 @@ No additional action is required on your part!
 Here's an example of how a dataset entry should look in the CSV:
 
 ```csv
-Name,URL,Area of body,Imaging type,Type of Resource,Open access,Access on application,Commercial access,Area of focus,Data notes
-Example Dataset,https://example.com/dataset,General,Ultrasound,Dataset,TRUE,FALSE,TRUE,General Ultrasound,A description of the dataset
+Dataset Name,Modalities,Clinical Application,Registraition Type of Patients,Segmentaitions Available,Landmarks Available,Meshes (STL) Available,Tracking / Pose Data,Ground-Truth Transformations,Subjects,Link,Source,DOI,Licence,Notes
+Example Dataset,US,General,N,Y,N,N,N,N,100,https://example.com/dataset,Source Inst,10.XXXX/XXXX,CC BY 4.0,A description
 ```
 
 ## Questions?
 
 If you have questions or need help, please open an issue on the repository or contact the maintainers.
-
