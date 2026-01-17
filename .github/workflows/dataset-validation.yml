@@ -27,17 +27,3 @@ jobs:
     - name: Run dataset validator
       run: |
         python validate_dataset.py
-
-    - name: Check for errors
-      run: |
-        # Run the checker and capture output
-        output=$(python validate_dataset.py 2>&1)
-
-        # If there's any output, it means there are errors
-        if [ -n "$output" ]; then
-          echo "❌ Dataset validation failed. Found the following issues:"
-          echo "$output"
-          exit 1
-        else
-          echo "✅ Dataset validation passed - no typos or inconsistencies found"
-        fi
