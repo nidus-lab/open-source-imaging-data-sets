@@ -172,8 +172,11 @@ const DataList = ({ query, setQuery }) => {
    // Get marker data, parse + store
    const getData = async () => {
 
+      // Link to public-view google sheet
+      const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2sELYivSNVPtldwGXsAFoaaWEiNo_oaua6DIok4UyBcHtsGf1lITnhNU_UA3fVPFDve2zvNaLTvgU/pub?output=csv'
+
       // Parse file
-      const data = await parseFile('/data/ultrasound_dataset_complete.csv')
+      const data = await parseFile(GOOGLE_SHEET_URL)
 
       // Remove headers
       const headers = data.shift()
