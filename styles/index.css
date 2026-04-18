@@ -1,3 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-slate-50;
+  }
+
+  body {
+    @apply min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 antialiased;
+  }
+
+  a,
+  button,
+  input,
+  select {
+    @apply min-w-0;
+  }
+}

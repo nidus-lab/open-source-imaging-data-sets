@@ -12,7 +12,7 @@ export default function Header() {
                   <div className="pr-4 flex-shrink-0">
                      <Link href="https://nidusai.ca">
                         <a target="_blank">
-                           <img src={`${prefix}/logo-lab.png`} alt="National Institute for Health Research" className="h-6 sm:h-8" />
+                           <img src={`${prefix}/logo-lab.png`} alt="NIDUS Lab" className="h-6 sm:h-8" />
                         </a>
                      </Link>
                   </div>
@@ -20,7 +20,7 @@ export default function Header() {
                      <Link href="https://radoss.org">
                         <a target="_blank" className="flex flex-col flex-shrink-0 space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:space-x-2">
                            <div>
-                              <img src={`${prefix}/radoss-logo.png`} className="h-8 sm:h-10" alt="NHS AI Lab" />
+                              <img src={`${prefix}/radoss-logo.png`} className="h-8 sm:h-10" alt="RadOSS" />
                            </div>
                         </a>
                      </Link>

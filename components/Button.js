@@ -2,13 +2,13 @@ import Link from "next/link"
 
 const Button = ({ text, type = 'button', href, size, className = '', color, onClick, children, block, disabled }) => {
 
-   const defaultClasses = 'focus:outline-none flex-shrink-0 font-medium justify-center items-center transition-color duration-150 border'
+   const defaultClasses = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500 flex-shrink-0 font-medium justify-center items-center transition-colors duration-150 border rounded-2xl shadow-sm'
 
    // Define color classes 
    let colorClasses = ''
    switch (color) {
       case 'blue':
-         colorClasses = 'bg-blue-700 border-blue-700 hover:bg-blue-900 hover:border-blue-900 text-white'
+         colorClasses = 'bg-sky-600 border-sky-600 hover:bg-sky-700 hover:border-sky-700 text-white'
          break
       case 'gray':
          colorClasses = 'bg-gray-500 border-gray-500 hover:bg-gray-400 hover:border-gray-400 text-white'
@@ -20,7 +20,7 @@ const Button = ({ text, type = 'button', href, size, className = '', color, onCl
          colorClasses = 'bg-yellow-500 border-yellow-500 hover:bg-yellow-600 hover:border-yellow-600 text-white'
          break
       case 'white':
-         colorClasses = 'bg-white border-white text-gray-700 hover:text-gray-600 hover:bg-gray-50'
+         colorClasses = 'bg-white border-white text-slate-700 hover:text-slate-900 hover:bg-slate-50'
          break
       default:
       case 'black':
@@ -31,7 +31,7 @@ const Button = ({ text, type = 'button', href, size, className = '', color, onCl
          break
       case 'clear':
       case 'outline':
-         colorClasses = 'border-gray-400 text-gray-800 hover:bg-gray-50'
+         colorClasses = 'border-slate-300 bg-white/80 text-slate-800 hover:bg-slate-50'
          break
    }
 
@@ -54,7 +54,7 @@ const Button = ({ text, type = 'button', href, size, className = '', color, onCl
 
    // Define fill 
    const fillClass = block ? 'flex w-full' : 'inline-flex'
-   const disabledClass = disabled ? 'opacity-75' : ''
+   const disabledClass = disabled ? 'opacity-75 cursor-not-allowed' : ''
    const classString = `${className} ${colorClasses} ${sizeClasses} ${disabledClass} ${fillClass} ${defaultClasses}`
 
    return href ? (
