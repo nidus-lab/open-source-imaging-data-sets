@@ -9,6 +9,10 @@ on:
   push:
     branches: ["main"]
 
+  # Runs nightly to refresh the cached Google Sheet snapshot and redeploy Pages
+  schedule:
+    - cron: "17 2 * * *"
+
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -74,6 +78,8 @@ jobs:
             ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-
       - name: Install dependencies
         run: ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
+      - name: Refresh dataset cache
+        run: ${{ steps.detect-package-manager.outputs.manager }} run sync:data
       - name: Build with Next.js
         run: ${{ steps.detect-package-manager.outputs.runner }} next build
       - name: Export static site
