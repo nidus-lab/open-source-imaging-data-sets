@@ -6,7 +6,7 @@ export default function Footer() {
       <footer className="pt-4 pb-6">
          <Container>
             <div className="flex justify-center sm:hidden">
-               <Link href="https://github.com/nhsx/open-source-imaging-data-sets">
+               <Link href="https://github.com/nidus-lab/open-source-imaging-data-sets">
                   <a
                      target="_BLANK"
                      className="rounded-full duration-150 text-black hover:text-gray-800"

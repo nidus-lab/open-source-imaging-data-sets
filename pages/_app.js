@@ -28,11 +28,11 @@ export default function MyApp({ Component, pageProps }) {
     <>
       <NextSeo
         title="Ultrasound Open Access Datasets"
-        description="A list of open access ultrasound datasets."
+        description="A searchable directory of open-access ultrasound datasets maintained by NIDUS Lab and RadOSS."
         openGraph={{
           url: 'http://ultrasound-datasets.nidusai.ca/',
           title: 'Ultrasound Open Access Datasets',
-          description: 'A list of open source imaging datasets, maintained by the NIDUS Lab and RadOSS',
+          description: 'A searchable directory of open-access ultrasound datasets maintained by NIDUS Lab and RadOSS.',
           images: [
             {
               url: 'http://ultrasound-datasets.nidusai.ca/social-back.jpg',

@@ -1,416 +1,604 @@
-import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
-import { SearchIcon } from "@heroicons/react/outline"
+import fs from "fs/promises"
+import path from "path"
+import { useMemo, useState } from "react"
+import {
+   AdjustmentsIcon,
+   ChevronDownIcon,
+   ChevronUpIcon,
+   DownloadIcon,
+   ExternalLinkIcon,
+   SearchIcon,
+   XIcon
+} from "@heroicons/react/outline"
+import { parseCsvText, rowsToObjects } from "lib/csv"
+import { nameSort } from "lib/sort"
 import { prefix } from "lib/prefix"
-import { parseFile } from "lib/csv"
-import { Popover } from "@headlessui/react"
-import { usePopper } from "react-popper"
-import { booleanColumnSearch, valueColumnSearch, commaSeparatedValueSearch, nameSort, textSearch } from "lib/sort"
 import Container from "components/Container"
 import Footer from "components/Footer"
 import Header from "components/Header"
 import Button from "components/Button"
 import Select from "components/Select"
-const Introduction = () => (
-   <section className={`flex duration-500 ease-in-out`}>
-      <div className="flex-1 flex flex-col justify-center py-6 sm:py-12">
-         <Container>
-            <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-center tracking-tighter leading-tight text-gray-800">
-               A collection of open access ultrasound imaging data sets.
-            </h1>
-         </Container>
+
+const LOCAL_CSV_PATH = "/data/ultrasound-datasets.csv"
+const LOCAL_XLSX_PATH = "/data/ultrasound-datasets.xlsx"
+const LOCAL_META_PATH = "/data/ultrasound-datasets.meta.json"
+const GOOGLE_SHEET_XLSX_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2sELYivSNVPtldwGXsAFoaaWEiNo_oaua6DIok4UyBcHtsGf1lITnhNU_UA3fVPFDve2zvNaLTvgU/pub?output=xlsx"
+const NIDUS_LAB_URL = "https://www.nidusai.ca/"
+const RADOSS_URL = "https://radoss.org/"
+const EMPTY_FILTERS = {
+   modalities: [],
+   application: [],
+   licence: []
+}
+
+const cleanValue = (value, fallback = "") => {
+   if (value === null || value === undefined) return fallback
+
+   const cleaned = String(value)
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+
+   return cleaned || fallback
+}
+
+const splitValues = (value) => (
+   cleanValue(value)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+)
+
+const valuesToOptions = (values) => values.map((value) => ({ value, label: value }))
+const normaliseSelectedOptions = (values) => {
+   if (Array.isArray(values)) return values
+   if (!values) return []
+   return [values]
+}
+const truncateText = (value, maxLength = 220) => {
+   const cleaned = cleanValue(value)
+   if (cleaned.length <= maxLength) return cleaned
+   return `${cleaned.slice(0, maxLength).trimEnd()}...`
+}
+
+const getLicenceTone = (licenceValue) => {
+   const normalised = cleanValue(licenceValue, "Not specified").toLowerCase()
+
+   const isUnspecified = [
+      "not specified",
+      "not stated",
+      "unknown",
+      "not listed"
+   ].some((term) => normalised.includes(term))
+
+   if (isUnspecified) {
+      return "licenceUnspecified"
+   }
+
+   const isResearchRestricted = [
+      "non-commercial",
+      "non commercial",
+      "research use",
+      "controlled data access",
+      "access required",
+      "cc by nc",
+      "cc-by-nc",
+      "cc by-nc",
+      "cc-by nc",
+      "cc by nc sa",
+      "cc-by-nc-sa",
+      "cc by-nc-sa",
+      "cc-by nc sa",
+      "cc by-nc-sa",
+      "cc by-nc",
+      "cc by nc 3.0",
+      "cc by nc 4.0"
+   ].some((term) => normalised.includes(term))
+
+   if (isResearchRestricted) {
+      return "licenceResearch"
+   }
+
+   return "licenceCommercial"
+}
+
+const getLicenceSortPriority = (entry) => {
+   const licenceTone = getLicenceTone(entry["Licence"])
+
+   switch (licenceTone) {
+      case "licenceCommercial":
+         return 0
+      case "licenceResearch":
+         return 1
+      case "licenceUnspecified":
+      default:
+         return 2
+   }
+}
+
+const isAffirmative = (value) => {
+   const normalised = cleanValue(value).toLowerCase()
+   return ["y", "yes", "true"].includes(normalised)
+}
+
+const getDatasetName = (entry) => cleanValue(entry["Dataset Name"] || entry["Name"], "Untitled dataset")
+
+const formatDate = (dateString) => {
+   if (!dateString) return "Unknown"
+
+   return new Intl.DateTimeFormat("en-GB", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "UTC"
+   }).format(new Date(dateString))
+}
+
+const DownloadLink = ({ href, children, subtle = false, external = false, download = false }) => (
+   <a
+      href={href}
+      download={download}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noreferrer" : undefined}
+      className={`inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition-colors ${subtle
+         ? "border-slate-300 bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900"
+         : "border-sky-600 bg-sky-600 text-white hover:border-sky-700 hover:bg-sky-700"
+         }`}
+   >
+      {children}
+   </a>
+)
+
+const Badge = ({ children, tone = "slate" }) => {
+   const tones = {
+      slate: "bg-slate-100 text-slate-700",
+      sky: "bg-sky-100 text-sky-700",
+      emerald: "bg-emerald-100 text-emerald-700",
+      amber: "bg-amber-100 text-amber-700"
+   }
+
+   return (
+      <span className={`inline-flex max-w-full break-words rounded-full px-3 py-1 text-xs font-semibold ${tones[tone] || tones.slate}`}>
+         {children}
+      </span>
+   )
+}
+
+const EntryTags = ({ entry, column, tone = "slate" }) => {
+   const values = splitValues(entry[column])
+
+   if (!values.length) return null
+
+   return (
+      <div className="flex flex-wrap gap-2">
+         {values.map((tag) => (
+            <Badge key={`${column}-${tag}`} tone={tone}>
+               {tag}
+            </Badge>
+         ))}
       </div>
+   )
+}
+
+const MetadataItem = ({ label, value, tone = "default" }) => {
+   const tones = {
+      default: {
+         container: "bg-slate-50",
+         label: "text-slate-500",
+         value: "text-slate-700"
+      },
+      licenceUnspecified: {
+         container: "border border-rose-200 bg-rose-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
+         label: "text-rose-700",
+         value: "text-rose-950"
+      },
+      licenceResearch: {
+         container: "border border-orange-200 bg-orange-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
+         label: "text-orange-700",
+         value: "text-orange-950"
+      },
+      licenceCommercial: {
+         container: "border border-emerald-200 bg-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
+         label: "text-emerald-700",
+         value: "text-emerald-950"
+      }
+   }
+
+   const selectedTone = tones[tone] || tones.default
+
+   return (
+      <div className={`min-w-0 rounded-2xl px-4 py-3 ${selectedTone.container}`}>
+         <div className={`text-xs font-semibold uppercase tracking-[0.18em] ${selectedTone.label}`}>{label}</div>
+         <div className={`mt-1 break-words text-sm font-medium ${selectedTone.value}`}>{value}</div>
+      </div>
+   )
+}
+
+const AvailabilityPill = ({ label, value }) => (
+   <Badge tone={value ? "emerald" : "slate"}>
+      {label}: {value ? "Yes" : "No"}
+   </Badge>
+)
+
+const DatasetCard = ({ entry }) => {
+   const [isExpanded, setIsExpanded] = useState(false)
+   const datasetUrl = cleanValue(entry["Link"] || entry["URL"])
+   const notes = cleanValue(entry["Notes"] || entry["Data notes"], "No extra notes provided.")
+   const licence = cleanValue(entry["Licence"], "Not listed")
+   const licenceTone = getLicenceTone(licence)
+   const source = cleanValue(entry["Source"], "Not listed")
+   const subjects = cleanValue(entry["Subjects"], "Not listed")
+   const patientRegistration = cleanValue(entry["Registraition Type of Patients"], "Not listed")
+   const doi = cleanValue(entry["DOI"], "Not listed")
+   const score = cleanValue(entry["SonoMQS Score"])
+   const summaryNotes = isExpanded ? notes : truncateText(notes)
+
+   return (
+      <article className="flex min-w-0 flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white/95 p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.55)] ring-1 ring-white/70 md:p-6">
+         <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+               <h2 className="break-words text-xl font-semibold tracking-tight text-slate-900">
+                  {datasetUrl ? (
+                     <a
+                        href={datasetUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-w-0 items-start gap-2 hover:text-sky-700"
+                     >
+                        <span className="break-words">{getDatasetName(entry)}</span>
+                        <ExternalLinkIcon className="mt-1 h-4 w-4 flex-shrink-0" />
+                     </a>
+                  ) : (
+                     getDatasetName(entry)
+                  )}
+               </h2>
+               <p className="mt-3 break-words text-sm leading-6 text-slate-600">{summaryNotes}</p>
+            </div>
+            {score && (
+               <div className="rounded-2xl bg-amber-50 px-4 py-3 text-right text-sm font-semibold text-amber-800">
+                  SonoMQS
+                  <div className="text-2xl tracking-tight">{score}</div>
+               </div>
+            )}
+         </div>
+
+         <div className="mt-4 flex flex-wrap gap-2">
+            <EntryTags entry={entry} column="Modalities" tone="emerald" />
+            <EntryTags entry={entry} column="Clinical Application" tone="sky" />
+         </div>
+
+         <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <MetadataItem label="Subjects" value={subjects} />
+            <MetadataItem label="Licence / Access" value={licence} tone={licenceTone} />
+            <MetadataItem label="Source" value={source} />
+         </div>
+
+         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+            <div className="flex flex-wrap gap-3">
+               {datasetUrl && (
+                  <a
+                     href={datasetUrl}
+                     target="_blank"
+                     rel="noreferrer"
+                     className="inline-flex items-center gap-2 font-semibold text-sky-700 hover:text-sky-800"
+                  >
+                     Visit dataset
+                     <ExternalLinkIcon className="h-4 w-4" />
+                  </a>
+               )}
+               {doi && doi !== "Not listed" && (
+                  <span className="text-sm text-slate-600">
+                     <span className="font-semibold text-slate-700">DOI:</span> {doi}
+                  </span>
+               )}
+            </div>
+            <button
+               type="button"
+               onClick={() => setIsExpanded((current) => !current)}
+               aria-expanded={isExpanded}
+               className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-200 hover:text-sky-800"
+            >
+               {isExpanded ? "Show less" : "Show more"}
+               {isExpanded ? (
+                  <ChevronUpIcon className="h-4 w-4" />
+               ) : (
+                  <ChevronDownIcon className="h-4 w-4" />
+               )}
+            </button>
+         </div>
+
+         {isExpanded && (
+            <div className="mt-5 space-y-5 border-t border-slate-100 pt-5">
+               <div className="grid gap-3 sm:grid-cols-2">
+                  <MetadataItem label="Patient Registration" value={patientRegistration} />
+               </div>
+
+               <div className="flex flex-wrap gap-2">
+                  <AvailabilityPill label="Segmentations" value={isAffirmative(entry["Segmentaitions Available"])} />
+                  <AvailabilityPill label="Landmarks" value={isAffirmative(entry["Landmarks Available"])} />
+                  <AvailabilityPill label="Meshes" value={isAffirmative(entry["Meshes (STL) Available"])} />
+                  <AvailabilityPill label="Tracking" value={isAffirmative(entry["Tracking / Pose Data"])} />
+                  <AvailabilityPill label="GT transforms" value={isAffirmative(entry["Ground-Truth Transformations"])} />
+               </div>
+            </div>
+         )}
+      </article>
+   )
+}
+
+const Introduction = ({ datasetCount, refreshedAt }) => (
+   <section className="relative overflow-hidden pt-4 pb-10 sm:pt-8 sm:pb-14">
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_36%),radial-gradient(circle_at_bottom_right,_rgba(16,185,129,0.16),_transparent_34%)]" />
+      <Container>
+         <div className="relative overflow-hidden rounded-[32px] border border-white/60 bg-white/80 px-6 py-8 shadow-[0_30px_80px_-50px_rgba(15,23,42,0.65)] backdrop-blur md:px-10 md:py-10">
+            <div className="absolute inset-0 pointer-events-none bg-repeat opacity-[0.035]" style={{ backgroundImage: `url(${prefix}/hideout.svg)` }} />
+            <div className="relative grid gap-8 lg:grid-cols-[1.6fr_1fr] lg:items-end">
+               <div className="min-w-0">
+                  <div className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
+                     Open access ultrasound datasets
+                  </div>
+                  <h1 className="mt-4 max-w-4xl text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+                     Find open-access ultrasound datasets faster.
+                  </h1>
+                  <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600 sm:text-lg">
+                     Search a curated directory of ultrasound datasets for research, benchmarking, and tool development. Filter by modality, clinical application, or licence, then download the spreadsheet if you want to work offline.
+                  </p>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                     <DownloadLink href={`${prefix}${LOCAL_XLSX_PATH}`} download>
+                        <DownloadIcon className="h-4 w-4 flex-shrink-0" />
+                        Download Excel
+                     </DownloadLink>
+                     <DownloadLink href={`${prefix}${LOCAL_CSV_PATH}`} download subtle>
+                        <DownloadIcon className="h-4 w-4 flex-shrink-0" />
+                        Download CSV
+                     </DownloadLink>
+                     <DownloadLink href={GOOGLE_SHEET_XLSX_URL} external subtle>
+                        <ExternalLinkIcon className="h-4 w-4 flex-shrink-0" />
+                        View source spreadsheet
+                     </DownloadLink>
+                  </div>
+                  <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                     <span className="font-medium text-slate-700">Maintained by</span>
+                     <a
+                        href={NIDUS_LAB_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-slate-700 transition-colors hover:border-sky-200 hover:text-sky-700"
+                     >
+                        <img src={`${prefix}/logo-lab.png`} alt="NIDUS Lab" className="h-5 w-auto" />
+                        <span className="font-medium">NIDUS Lab</span>
+                     </a>
+                     <a
+                        href={RADOSS_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-slate-700 transition-colors hover:border-sky-200 hover:text-sky-700"
+                     >
+                        <img src={`${prefix}/radoss-logo.png`} alt="RadOSS" className="h-6 w-auto" />
+                        <span className="font-medium">RadOSS</span>
+                     </a>
+                  </div>
+               </div>
+               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <div className="rounded-[28px] border border-slate-200 bg-slate-900 px-5 py-5 text-white">
+                     <div className="text-sm font-medium text-slate-300">Datasets in directory</div>
+                     <div className="mt-2 text-4xl font-semibold tracking-tight">{datasetCount}</div>
+                     <div className="mt-2 text-sm text-slate-300">Search by name, notes, modality, clinical application, source, DOI, or licence.</div>
+                  </div>
+                  <div className="rounded-[28px] border border-emerald-200 bg-emerald-50 px-5 py-5 text-emerald-950">
+                     <div className="text-sm font-medium text-emerald-700">Last updated</div>
+                     <div className="mt-2 text-lg font-semibold tracking-tight">{refreshedAt}</div>
+                     <div className="mt-2 text-sm text-emerald-800">Built from the latest cached spreadsheet snapshot so you can browse and download it without leaving the site.</div>
+                  </div>
+               </div>
+            </div>
+         </div>
+      </Container>
    </section>
 )
 
-const EntryTags = ({ entry, column, bgColor, textColor, limit = 3 }) => {
-
-   // Propper config
-   let [referenceElement, setReferenceElement] = useState()
-   let [popperElement, setPopperElement] = useState()
-   let { styles, attributes } = usePopper(referenceElement, popperElement, {
-      placement: "top",
-      modifiers: [
-         {
-            name: "offset",
-            options: {
-               offset: [0, 8]
-            }
-         }
-      ]
-   })
-
-   // Tag processing for comma-separated values
-   const entryValue = entry[column]
-   const matches = entryValue ? entryValue.split(',').map(item => item.trim()).filter(Boolean) : []
-   const overflow = matches.slice(limit, matches.length + 1)
-   const badgeClass = `${bgColor ? bgColor : 'bg-green-500'} ${textColor ? textColor : 'text-white'} text-xs rounded px-2 py-1 flex-shrink-0`
-
-   // Render
-   return (
-      <div className="flex flex-shrink-0 space-x-2 mt-3">
-         {
-            matches.slice(0, limit).map(tag => (
-               <div key={tag} className={badgeClass}>
-                  {tag}
-               </div>
-            ))
-         }
-         {
-            overflow.length > 0 && (
-               <Popover>
-
-                  {/* Button */}
-                  <Popover.Button
-                     ref={setReferenceElement}
-                     className={badgeClass}
-                  >
-                     + {overflow.length} more
-                  </Popover.Button>
-
-                  {/* Panel */}
-                  <Popover.Panel
-                     ref={setPopperElement}
-                     style={styles.popper}
-                     {...attributes.popper}
-                  >
-                     <div className={badgeClass}>
-                        {overflow.join(', ')}
-                     </div>
-                     <div className="position absolute top-full left-0 right-0">
-                        <div className="flex justify-center">
-                           <div class="w-4 overflow-hidden inline-block">
-                              <div class={`h-2 w-2 -rotate-45 transform origin-top-left ${bgColor ? bgColor : 'bg-green-500'}`}></div>
-                           </div>
-                        </div>
-                     </div>
-                  </Popover.Panel>
-               </Popover>
-            )
-         }
-      </div>
-   )
-}
-
-const DataList = ({ query, setQuery }) => {
-
-   // Local state
-   const [headers, setHeaders] = useState([])
-   const [data, setData] = useState([])
+const DataList = ({ data }) => {
+   const [query, setQuery] = useState("")
    const [showFilters, setShowFilters] = useState(false)
-   const [activeFilters, setActiveFilters] = useState({})
+   const [activeFilters, setActiveFilters] = useState(EMPTY_FILTERS)
 
-   // Filter data
-   const filterData = () => {
-
-      // Check if we have data to filter
-      if (data.length == 0) return []
-
-      // Result set
-      let results = data
-
-      // Text search
-      if (query)
-         results = results.filter(item1 => textSearch(query, data).some(item2 => (item1['Dataset Name'] || item1['Name']) === (item2['Dataset Name'] || item2['Name'])))
-
-      // Column filters for comma-separated values
-      if (activeFilters['Clinical Application'] && activeFilters['Clinical Application'][0] !== '') {
-         results = results.filter(item1 => commaSeparatedValueSearch('Clinical Application', activeFilters['Clinical Application'], data).some(item2 => (item1['Dataset Name'] || item1['Name']) === (item2['Dataset Name'] || item2['Name'])))
-      }
-
-      if (activeFilters['Modalities'] && activeFilters['Modalities'][0] !== '') {
-         results = results.filter(item1 => commaSeparatedValueSearch('Modalities', activeFilters['Modalities'], data).some(item2 => (item1['Dataset Name'] || item1['Name']) === (item2['Dataset Name'] || item2['Name'])))
-      }
-
-      // Access
-      if (activeFilters['licence'] && activeFilters['licence'][0] !== '') {
-         const licenceValue = activeFilters['licence'][0]
-         results = results.filter(item1 => valueColumnSearch('Licence', [licenceValue], data).some(item2 => (item1['Dataset Name'] || item1['Name']) === (item2['Dataset Name'] || item2['Name'])))
-      }
-
-      // Merge and return
-      return results
-   }
-
-   // Computed data for comma-separated values
    const columnFilters = useMemo(() => {
-      if (data.length === 0) return { 'Clinical Application': [], 'Modalities': [], 'Licence': [] }
-
-      // Extract all values from comma-separated lists
-      const clinicalApplicationValues = [...new Set(
-         data.flatMap(entry =>
-            entry['Clinical Application'] ?
-               entry['Clinical Application'].split(',').map(item => item.trim()).filter(Boolean) :
-               []
-         )
-      )]
-
-      const modalitiesValues = [...new Set(
-         data.flatMap(entry =>
-            entry['Modalities'] ?
-               entry['Modalities'].split(',').map(item => item.trim()).filter(Boolean) :
-               []
-         )
-      )]
-
-      const licenceValues = [...new Set(
-         data.flatMap(entry =>
-            entry['Licence'] ?
-               [entry['Licence'].trim()] :
-               []
-         )
-      )]
+      const uniqueValues = (column, splitCommaSeparated = true) => (
+         [...new Set(
+            data.flatMap((entry) => {
+               const rawValue = cleanValue(entry[column])
+               if (!rawValue) return []
+               return splitCommaSeparated ? splitValues(rawValue) : [rawValue]
+            })
+         )].sort((left, right) => left.localeCompare(right))
+      )
 
       return {
-         'Clinical Application': clinicalApplicationValues,
-         'Modalities': modalitiesValues,
-         'Licence': licenceValues
+         modalities: uniqueValues("Modalities"),
+         applications: uniqueValues("Clinical Application"),
+         licences: uniqueValues("Licence", false)
       }
    }, [data])
-   const filteredData = useMemo(() => filterData(), [data, activeFilters, columnFilters, query])
 
-   // Get marker data, parse + store
-   const getData = async () => {
+   const filteredData = useMemo(() => {
+      const searchQuery = cleanValue(query).toLowerCase()
+      const matchesSelectedValues = (entryValues, selectedValues) => (
+         selectedValues.length === 0 || selectedValues.some((value) => entryValues.includes(value))
+      )
 
-      // Link to public-view google sheet
-      const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2sELYivSNVPtldwGXsAFoaaWEiNo_oaua6DIok4UyBcHtsGf1lITnhNU_UA3fVPFDve2zvNaLTvgU/pub?output=csv'
+      return data.filter((entry) => {
+         const searchBlob = [
+            getDatasetName(entry),
+            cleanValue(entry["Notes"] || entry["Data notes"]),
+            cleanValue(entry["Source"]),
+            cleanValue(entry["Clinical Application"]),
+            cleanValue(entry["Modalities"]),
+            cleanValue(entry["DOI"]),
+            cleanValue(entry["Licence"])
+         ].join(" ").toLowerCase()
 
-      // Parse file
-      const data = await parseFile(GOOGLE_SHEET_URL)
-
-      // Remove headers
-      const headers = data.shift()
-
-      // Loop and create associative array
-      let rows = []
-      for (let i = 0; i < data.length; i++) {
-         rows[i] = []
-         for (let j = 0; j < headers.length; j++) {
-            rows[i][headers[j]] = data[i][j]
+         if (searchQuery && !searchBlob.includes(searchQuery)) {
+            return false
          }
-      }
 
-      // Set headers
-      setHeaders(headers)
+         if (!matchesSelectedValues(splitValues(entry["Modalities"]), activeFilters.modalities)) {
+            return false
+         }
 
-      // Set data
-      setData([...rows.sort(nameSort)])
+         if (!matchesSelectedValues(splitValues(entry["Clinical Application"]), activeFilters.application)) {
+            return false
+         }
 
-   }
+         if (!matchesSelectedValues([cleanValue(entry["Licence"])], activeFilters.licence)) {
+            return false
+         }
 
-   // On load, get markers
-   useEffect(() => {
-      getData()
-   }, [])
+         return true
+      }).sort((left, right) => {
+         const priorityDifference = getLicenceSortPriority(left) - getLicenceSortPriority(right)
+
+         if (priorityDifference !== 0) {
+            return priorityDifference
+         }
+
+         return getDatasetName(left).localeCompare(getDatasetName(right))
+      })
+   }, [activeFilters, data, query])
+
+   const activeFilterCount = Object.values(activeFilters).reduce((count, values) => count + values.length, 0)
+   const hasActiveFilters = activeFilterCount > 0 || Boolean(cleanValue(query))
 
    return (
-      <section className={`pt-2 pb-6 duration-500 ease-in-out`}>
+      <section className="pb-10">
          <Container>
-            <div className={`relative bg-white border border-gray-100 shadow-xl rounded-xl`}>
-               <div className="py-6 bg-white rounded-t-xl sticky top-0 px-6">
-                  <div className="flex flex-col space-y-2 sm:space-y-0 sm:flex-row sm:space-x-4 sm:items-center">
-                     <div className="relative flex-1">
-                        <div className="absolute top-0 left-0 p-3">
-                           <SearchIcon className="w-4 h-4 text-gray-800" />
+            <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white/90 shadow-[0_30px_80px_-55px_rgba(15,23,42,0.5)]">
+               <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                     <div className="min-w-0 flex-1">
+                        <div className="relative">
+                           <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                           <input
+                              type="text"
+                              value={query}
+                              onChange={(event) => setQuery(event.target.value)}
+                              className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                              placeholder="Search datasets, notes, modalities, applications, DOI, or source"
+                           />
                         </div>
-                        <input
-                           type="text"
-                           value={query}
-                           onChange={(e) => setQuery(e.target.value)}
-                           className="w-full border-gray-300 pl-10 pr-3 py-2 sm:text-sm text-gray-800 focus:ring-blue-500 focus:ring-2 focus:border-transparent focus:ring-offset-1"
-                           placeholder="Search datasets"
-                        />
                      </div>
-                     <div className="flex flex-col items-stretch">
-                        <Button type="button" color="blue" onClick={() => setShowFilters(!showFilters)}>
-                           {showFilters ? 'Hide filters' : 'Filter datasets'}
+                     <div className="flex flex-wrap gap-3">
+                        <Button type="button" color="outline" onClick={() => setShowFilters(!showFilters)}>
+                           <AdjustmentsIcon className="h-4 w-4 flex-shrink-0" />
+                           {showFilters ? "Hide filters" : "Show filters"}
                         </Button>
+                        {hasActiveFilters && (
+                           <Button
+                              type="button"
+                              color="white"
+                              onClick={() => {
+                                 setQuery("")
+                                 setActiveFilters(EMPTY_FILTERS)
+                              }}
+                           >
+                              <XIcon className="h-4 w-4 flex-shrink-0" />
+                              Clear all
+                           </Button>
+                        )}
                      </div>
                   </div>
-                  {
-               showFilters && (
-                  <div className="flex flex-col space-y-2 sm:space-y-0 sm:flex-row sm:space-x-4 mt-3 mb-2 sm:items-center">
-                     <div className="flex-1">
+
+                  {showFilters && (
+                     <div className="mt-4 grid gap-3 md:grid-cols-3">
                         <Select
                            label="Modalities"
-                           onSelect={({ value, label }) => setActiveFilters({
-                              ...activeFilters,
-                              'Modalities': [value]
-                           })}
-                           options={
-                              [{ label: 'Select a type', value: '' }].concat(
-                                 (columnFilters['Modalities'] || []).map(entry => ({ value: entry, label: entry }))
-                              )
-                           }
+                           multiple
+                           placeholder="All modalities"
+                           value={valuesToOptions(activeFilters.modalities)}
+                           onSelect={(values) => setActiveFilters((current) => ({
+                              ...current,
+                              modalities: normaliseSelectedOptions(values).map(({ value }) => value)
+                           }))}
+                           options={columnFilters.modalities.map((entry) => ({ value: entry, label: entry }))}
                         />
-                     </div>
-                     <div className="flex-1">
                         <Select
                            label="Clinical Application"
-                           onSelect={({ value, label }) => setActiveFilters({
-                              ...activeFilters,
-                              'Clinical Application': [value]
-                           })}
-                           options={
-                              [{ label: 'Select a type', value: '' }].concat(
-                                 (columnFilters['Clinical Application'] || []).map(entry => ({ value: entry, label: entry }))
-                              )
-                           }
+                           multiple
+                           placeholder="All applications"
+                           value={valuesToOptions(activeFilters.application)}
+                           onSelect={(values) => setActiveFilters((current) => ({
+                              ...current,
+                              application: normaliseSelectedOptions(values).map(({ value }) => value)
+                           }))}
+                           options={columnFilters.applications.map((entry) => ({ value: entry, label: entry }))}
                         />
-                     </div>
-                     <div className="flex-1">
                         <Select
                            label="Licence"
-                           onSelect={({ value, label }) => setActiveFilters({
-                              ...activeFilters,
-                              'licence': [value]
-                           })}
-                           options={
-                              [{ label: 'Select a licence', value: '' }].concat(
-                                 (columnFilters['Licence'] || []).map(entry => ({ value: entry, label: entry }))
-                              )
-                           }
+                           multiple
+                           placeholder="All licences"
+                           value={valuesToOptions(activeFilters.licence)}
+                           onSelect={(values) => setActiveFilters((current) => ({
+                              ...current,
+                              licence: normaliseSelectedOptions(values).map(({ value }) => value)
+                           }))}
+                           options={columnFilters.licences.map((entry) => ({ value: entry, label: entry }))}
                         />
                      </div>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                     <Badge tone="sky">{filteredData.length} results</Badge>
+                     {activeFilterCount > 0 && <Badge>{activeFilterCount} filters active</Badge>}
+                     {!showFilters && (
+                        <span className="text-slate-500">Toggle filters to narrow the directory without losing space on small screens.</span>
+                     )}
                   </div>
-               )
-                  }
                </div>
-               <div>
-                  {
-                     filteredData.length > 0 ? (
-                        <div className="flex flex-col">
-                           <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                              <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                                 <div className="overflow-hidden border-b border-gray-200">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                       <thead className="bg-gray-50">
-                                          <tr>
-                                             <th
-                                                scope="col"
-                                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
-                                             >
-                                                Name
-                                             </th>
-                                             <th
-                                                scope="col"
-                                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
-                                             >
-                                                Details
-                                             </th>
-                                             <th
-                                                scope="col"
-                                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
-                                             >
-                                                Availability
-                                             </th>
-                                             <th
-                                                scope="col"
-                                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
-                                             >
-                                                Licence / Access
-                                             </th>
-                                          </tr>
-                                       </thead>
-                                       <tbody className="divide-y divide-gray-200">
-                                          {filteredData.map((entry, index) => (
-                                             <tr key={index}>
-                                                <td className="px-6 py-4">
-                                                   <div className="flex space-x-2 items-start">
-                                                      <Link href={entry['Link'] || entry['URL'] || '#'}>
-                                                         <a target="_blank" className="block text-sm underline font-medium text-gray-900 duration-100 hover:text-gray-500">{entry['Dataset Name'] || entry['Name'] || '-'}</a>
-                                                      </Link>
-                                                   </div>
-                                                   <span className="block text-sm text-gray-500 mt-1">{entry['Notes'] || entry['Data notes']}</span>
-                                                   <div className="flex space-x-2 items-start">
-                                                      <EntryTags entry={entry} column="Modalities" />
-                                                      <EntryTags entry={entry} column="Clinical Application" bgColor="bg-blue-500" textColor="text-white" />
-                                                   </div>
-                                                   {entry['DOI'] && (
-                                                      <span className="block text-xs text-gray-400 mt-1">DOI: {entry['DOI']}</span>
-                                                   )}
-                                                   {entry['Source'] && (
-                                                      <span className="block text-xs text-gray-400 mt-1">Source: {entry['Source']}</span>
-                                                   )}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
-                                                   <div>Subjects: {entry['Subjects'] || 'N/A'}</div>
-                                                   <div className="mt-1">Reg. Patients: {entry['Registraition Type of Patients']}</div>
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-500">
-                                                   <div className="flex flex-col space-y-1">
-                                                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${entry['Segmentaitions Available'] === 'Y' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                         Seg: {entry['Segmentaitions Available']}
-                                                      </span>
-                                                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${entry['Landmarks Available'] === 'Y' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                         Landmarks: {entry['Landmarks Available']}
-                                                      </span>
-                                                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${entry['Meshes (STL) Available'] === 'Y' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                         Meshes: {entry['Meshes (STL) Available']}
-                                                      </span>
-                                                   </div>
-                                                </td>
-                                                <td className="px-6 py-4 flex flex-col space-y-2 items-start">
-                                                   {entry['Licence'] && (
-                                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 whitespace-normal">
-                                                         {entry['Licence']}
-                                                      </span>
-                                                   )}
-                                                   {entry['Tracking / Pose Data'] === 'Y' && (
-                                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                                         Tracking Data
-                                                      </span>
-                                                   )}
-                                                   {entry['Ground-Truth Transformations'] === 'Y' && (
-                                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
-                                                         GT Xforms
-                                                      </span>
-                                                   )}
-                                                </td>
-                                             </tr>
-                                          ))}
-                                       </tbody>
-                                    </table>
-                                 </div>
-                              </div>
-                           </div>
-                        </div>
-                     ) : (
-                        <div className="text-center text-sm py-6 text-gray-600">
-                           No results found.
-                        </div>
-                     )
-                  }
+
+               <div className="px-5 py-6 sm:px-6">
+                  {filteredData.length > 0 ? (
+                     <div className="grid gap-5 xl:grid-cols-2">
+                        {filteredData.map((entry, index) => (
+                           <DatasetCard key={`${getDatasetName(entry)}-${index}`} entry={entry} />
+                        ))}
+                     </div>
+                  ) : (
+                     <div className="rounded-[28px] border border-dashed border-slate-300 bg-slate-50 px-6 py-14 text-center text-sm text-slate-600">
+                        No datasets matched the current search and filter settings.
+                     </div>
+                  )}
                </div>
             </div>
          </Container>
-      </section >
+      </section>
    )
 }
 
-
-export default function Home() {
-
-   // Local state
-   const [query, setQuery] = useState('')
-
+export default function Home({ data = [], refreshedAt = "Unknown" }) {
    return (
-      <div className="relative flex flex-col min-h-screen bg-gray-50">
-
-         {/* Pattern bg */}
-         <div className="absolute inset-0 z-[1] pointer-events-none bg-repeat bg-[length:50px_50px] opacity-[3%]" style={{ backgroundImage: `url(${prefix}/hideout.svg)` }}></div>
-
-         {/* Above the fold */}
-         <div className="relative z-[3] flex flex-col">
+      <div className="relative min-h-screen overflow-x-hidden bg-slate-50">
+         <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.09),_transparent_32%),radial-gradient(circle_at_80%_20%,_rgba(16,185,129,0.08),_transparent_22%)]" />
+         <div className="relative z-10">
             <Header />
-            <Introduction />
-         </div>
-
-         {/* Data list */}
-         <div className="relative z-[3]">
-            <DataList query={query} setQuery={setQuery} />
+            <Introduction datasetCount={data.length} refreshedAt={refreshedAt} />
+            <DataList data={data} />
             <Footer />
          </div>
       </div>
    )
+}
+
+export async function getStaticProps() {
+   const csvPath = path.join(process.cwd(), "public", LOCAL_CSV_PATH.replace(/^\//, ""))
+   const metaPath = path.join(process.cwd(), "public", LOCAL_META_PATH.replace(/^\//, ""))
+   const csvText = await fs.readFile(csvPath, "utf8")
+   const metaText = await fs.readFile(metaPath, "utf8")
+   const parsedRows = await parseCsvText(csvText)
+   const { data } = rowsToObjects(parsedRows)
+   const metadata = JSON.parse(metaText)
+
+   return {
+      props: {
+         data: [...data].sort(nameSort),
+         refreshedAt: formatDate(metadata.refreshedAt)
+      }
+   }
 }
