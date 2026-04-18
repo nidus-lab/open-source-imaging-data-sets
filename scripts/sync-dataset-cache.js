@@ -9,6 +9,7 @@ const OUTPUT_DIR = path.join(process.cwd(), "public", "data")
 const CSV_FILENAME = "ultrasound-datasets.csv"
 const XLSX_FILENAME = "ultrasound-datasets.xlsx"
 const META_FILENAME = "ultrasound-datasets.meta.json"
+const REQUEST_TIMEOUT_MS = 30000
 
 const withCacheBust = (url) => {
   const parsedUrl = new URL(url)
@@ -21,6 +22,7 @@ const fetchBuffer = (url, redirectCount = 0) => (
     const transport = url.startsWith("https:") ? https : http
 
     const request = transport.get(url, {
+      agent: false,
       headers: {
         "Cache-Control": "no-cache, no-store, max-age=0",
         "Pragma": "no-cache"
@@ -30,21 +32,24 @@ const fetchBuffer = (url, redirectCount = 0) => (
 
       if (statusCode >= 300 && statusCode < 400 && response.headers.location) {
         if (redirectCount > 5) {
+          response.resume()
           reject(new Error(`Too many redirects while fetching ${url}`))
           return
         }
 
         const nextUrl = new URL(response.headers.location, url).toString()
+        response.resume()
         resolve(fetchBuffer(nextUrl, redirectCount + 1))
         return
       }
 
       if (statusCode < 200 || statusCode >= 300) {
+        response.resume()
         reject(new Error(`Request to ${url} failed with status ${statusCode}`))
         return
       }
 
-      let chunks = []
+      const chunks = []
 
       response.on("data", (chunk) => {
         chunks.push(chunk)
@@ -53,8 +58,13 @@ const fetchBuffer = (url, redirectCount = 0) => (
       response.on("end", () => {
         resolve(Buffer.concat(chunks))
       })
+
+      response.on("error", reject)
     })
 
+    request.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      request.destroy(new Error(`Request to ${url} timed out after ${REQUEST_TIMEOUT_MS}ms`))
+    })
     request.on("error", reject)
   })
 )
