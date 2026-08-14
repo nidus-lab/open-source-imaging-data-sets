@@ -24,6 +24,7 @@ const LOCAL_CSV_PATH = "/data/ultrasound-datasets.csv"
 const LOCAL_META_PATH = "/data/ultrasound-datasets.meta.json"
 const GOOGLE_SHEET_XLSX_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2sELYivSNVPtldwGXsAFoaaWEiNo_oaua6DIok4UyBcHtsGf1lITnhNU_UA3fVPFDve2zvNaLTvgU/pub?output=xlsx"
 const SUGGEST_DATASET_URL = "https://forms.gle/TNfvjYigyDC5LhU97"
+const SONODQS_PAPER_URL = "https://www.nature.com/articles/s41746-025-02162-4"
 const NIDUS_LAB_URL = "https://www.nidusai.ca/"
 const RADOSS_URL = "https://radoss.org/"
 const SONODQS_SCORE_COLUMNS = [
@@ -78,23 +79,16 @@ const truncateText = (value, maxLength = 220) => {
 const getLicenceTone = (licenceValue) => {
    const normalised = cleanValue(licenceValue, "Not specified").toLowerCase()
 
-   const isUnspecified = [
-      "not specified",
-      "not stated",
-      "unknown",
-      "not listed"
-   ].some((term) => normalised.includes(term))
-
-   if (isUnspecified) {
-      return "licenceUnspecified"
-   }
-
    const isResearchRestricted = [
       "non-commercial",
       "non commercial",
       "research use",
       "controlled data access",
       "access required",
+      "research-use",
+      "research use agreement",
+      "custom research",
+      "competition terms",
       "cc by nc",
       "cc-by-nc",
       "cc by-nc",
@@ -113,7 +107,12 @@ const getLicenceTone = (licenceValue) => {
       return "licenceResearch"
    }
 
-   return "licenceCommercial"
+   const isCommercialOpen = [
+      /^cc[- ]by(?:[- ]?sa)?(?:\s|$|\d)/,
+      /^(apache[- ]?2\.0|apache license[, ]+version 2\.0|mit|mit license|gpl[- ]?[\d.]+|lgpl[- ]?[\d.]+|agpl[- ]?[\d.]+|bsd[- ]?[\d-]+|mpl[- ]?[\d.]+|isc|unlicense|zlib)$/
+   ].some((pattern) => pattern.test(normalised))
+
+   return isCommercialOpen ? "licenceCommercial" : "licenceUnspecified"
 }
 
 const getLicenceSortPriority = (entry) => {
@@ -300,10 +299,16 @@ const DatasetCard = ({ entry }) => {
                      </Badge>
                   )}
                   {score && (
-                     <div className="rounded-2xl bg-amber-50 px-4 py-3 text-right text-sm font-semibold text-amber-800">
+                     <a
+                        href={SONODQS_PAPER_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Read about SonoDQS"
+                        className="rounded-2xl bg-amber-50 px-4 py-3 text-right text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100 hover:text-amber-900"
+                     >
                         SonoDQS
                         <div className="text-2xl tracking-tight">{score}</div>
-                     </div>
+                     </a>
                   )}
                </div>
             )}
@@ -508,16 +513,16 @@ const DataList = ({ data }) => {
             return featuredPriorityDifference
          }
 
+         const licencePriorityDifference = getLicenceSortPriority(left) - getLicenceSortPriority(right)
+
+         if (licencePriorityDifference !== 0) {
+            return licencePriorityDifference
+         }
+
          const scorePriorityDifference = getSonoDqsSortPriority(left) - getSonoDqsSortPriority(right)
 
          if (scorePriorityDifference !== 0) {
             return scorePriorityDifference
-         }
-
-         const priorityDifference = getLicenceSortPriority(left) - getLicenceSortPriority(right)
-
-         if (priorityDifference !== 0) {
-            return priorityDifference
          }
 
          return getDatasetName(left).localeCompare(getDatasetName(right))
