@@ -11,13 +11,9 @@ A list of open source ultrasound imaging datasets, maintained by the [NIDUS Lab]
 
 ## How it works
 
-The NIDUS Lab maintain a spreadsheet of open source ultrasound datasets with a number of attributes. When this spreadsheet is updated, a manual export to csv is required, with the resulting csv stored in [`/public/data/ultrasound_dataset_complete.csv`](https://github.com/nhsx/open-source-imaging-data-sets/blob/main/public/data/ultrasound_dataset_complete.csv).
+The NIDUS Lab maintain a spreadsheet of open source ultrasound datasets with a number of attributes. https://docs.google.com/spreadsheets/d/1k1wTdS6MVndNsqVfFxnsA6j_Y5qNudHfk6p7Vdd611I/edit?gid=294850476#gid=294850476.
 
-The csv file is pulled through and displayed in [`/pages/index.js`](https://github.com/nidus-lab/open-source-imaging-data-sets/blob/main/public/data/ultrasound_dataset_complete.csv).
-
-The columns are parsed on [L41](https://github.com/nhsx/open-source-imaging-data-sets/blob/c52345224dc3a70131d95a0d2dde85c13ea3d0e2/pages/index.js#L42) into an object. From here, they are displayed in the table which starts a [L158](https://github.com/nhsx/open-source-imaging-data-sets/blob/c52345224dc3a70131d95a0d2dde85c13ea3d0e2/pages/index.js#L158).
-
-If a column in the CSV is changed, added or removed; these are the two locations you'll need to edit in order to get the new data displaying.
+This is what is used to power the site.
 
 ## Getting started
 

@@ -8,6 +8,7 @@ import {
    DownloadIcon,
    ExternalLinkIcon,
    SearchIcon,
+   StarIcon,
    XIcon
 } from "@heroicons/react/outline"
 import { parseCsvText, rowsToObjects } from "lib/csv"
@@ -20,11 +21,24 @@ import Button from "components/Button"
 import Select from "components/Select"
 
 const LOCAL_CSV_PATH = "/data/ultrasound-datasets.csv"
-const LOCAL_XLSX_PATH = "/data/ultrasound-datasets.xlsx"
 const LOCAL_META_PATH = "/data/ultrasound-datasets.meta.json"
 const GOOGLE_SHEET_XLSX_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2sELYivSNVPtldwGXsAFoaaWEiNo_oaua6DIok4UyBcHtsGf1lITnhNU_UA3fVPFDve2zvNaLTvgU/pub?output=xlsx"
+const SUGGEST_DATASET_URL = "https://forms.gle/TNfvjYigyDC5LhU97"
 const NIDUS_LAB_URL = "https://www.nidusai.ca/"
 const RADOSS_URL = "https://radoss.org/"
+const SONODQS_SCORE_COLUMNS = [
+   "SonoDQS Score (Est. marked)",
+   "SonoDQS Score"
+]
+const SONODQS_TIER_PRIORITY = {
+   diamond: 0,
+   platinum: 1,
+   gold: 2,
+   silver: 3,
+   bronze: 4,
+   steel: 5,
+   unrated: 6
+}
 const EMPTY_FILTERS = {
    modalities: [],
    application: [],
@@ -122,6 +136,26 @@ const isAffirmative = (value) => {
 }
 
 const getDatasetName = (entry) => cleanValue(entry["Dataset Name"] || entry["Name"], "Untitled dataset")
+
+const getSonoDqsScore = (entry) => {
+   for (const column of SONODQS_SCORE_COLUMNS) {
+      const score = cleanValue(entry[column])
+      if (score) return score
+   }
+
+   // Keep cached exports from before the column rename readable until they refresh.
+   return cleanValue(entry["SonoMQS Score"])
+}
+
+const getSonoDqsSortPriority = (entry) => {
+   const tier = getSonoDqsScore(entry)
+      .replace(/\s*\(est\)\s*$/i, "")
+      .toLowerCase()
+
+   return SONODQS_TIER_PRIORITY[tier] ?? Number.MAX_SAFE_INTEGER
+}
+
+const getFeaturedSortPriority = (entry) => (isAffirmative(entry["Featured"]) ? 0 : 1)
 
 const formatDate = (dateString) => {
    if (!dateString) return "Unknown"
@@ -221,6 +255,7 @@ const AvailabilityPill = ({ label, value }) => (
 
 const DatasetCard = ({ entry }) => {
    const [isExpanded, setIsExpanded] = useState(false)
+   const isFeatured = isAffirmative(entry["Featured"])
    const datasetUrl = cleanValue(entry["Link"] || entry["URL"])
    const notes = cleanValue(entry["Notes"] || entry["Data notes"], "No extra notes provided.")
    const licence = cleanValue(entry["Licence"], "Not listed")
@@ -229,11 +264,14 @@ const DatasetCard = ({ entry }) => {
    const subjects = cleanValue(entry["Subjects"], "Not listed")
    const patientRegistration = cleanValue(entry["Registraition Type of Patients"], "Not listed")
    const doi = cleanValue(entry["DOI"], "Not listed")
-   const score = cleanValue(entry["SonoMQS Score"])
+   const score = getSonoDqsScore(entry)
    const summaryNotes = isExpanded ? notes : truncateText(notes)
 
    return (
-      <article className="flex min-w-0 flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white/95 p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.55)] ring-1 ring-white/70 md:p-6">
+      <article className={`flex min-w-0 flex-col overflow-hidden rounded-[28px] border p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.55)] md:p-6 ${isFeatured
+         ? "border-amber-300 bg-amber-50/70 ring-1 ring-amber-100"
+         : "border-slate-200 bg-white/95 ring-1 ring-white/70"
+         }`}>
          <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
                <h2 className="break-words text-xl font-semibold tracking-tight text-slate-900">
@@ -253,10 +291,20 @@ const DatasetCard = ({ entry }) => {
                </h2>
                <p className="mt-3 break-words text-sm leading-6 text-slate-600">{summaryNotes}</p>
             </div>
-            {score && (
-               <div className="rounded-2xl bg-amber-50 px-4 py-3 text-right text-sm font-semibold text-amber-800">
-                  SonoMQS
-                  <div className="text-2xl tracking-tight">{score}</div>
+            {(isFeatured || score) && (
+               <div className="flex flex-col items-end gap-2">
+                  {isFeatured && (
+                     <Badge tone="amber">
+                        <StarIcon className="h-3.5 w-3.5" />
+                        Featured
+                     </Badge>
+                  )}
+                  {score && (
+                     <div className="rounded-2xl bg-amber-50 px-4 py-3 text-right text-sm font-semibold text-amber-800">
+                        SonoDQS
+                        <div className="text-2xl tracking-tight">{score}</div>
+                     </div>
+                  )}
                </div>
             )}
          </div>
@@ -343,9 +391,9 @@ const Introduction = ({ datasetCount, refreshedAt }) => (
                      Search a curated directory of ultrasound datasets for research, benchmarking, and tool development. Filter by modality, clinical application, or licence, then download the spreadsheet if you want to work offline.
                   </p>
                   <div className="mt-6 flex flex-wrap gap-3">
-                     <DownloadLink href={`${prefix}${LOCAL_XLSX_PATH}`} download>
-                        <DownloadIcon className="h-4 w-4 flex-shrink-0" />
-                        Download Excel
+                     <DownloadLink href={SUGGEST_DATASET_URL} external>
+                        <ExternalLinkIcon className="h-4 w-4 flex-shrink-0" />
+                        Suggest New Dataset
                      </DownloadLink>
                      <DownloadLink href={`${prefix}${LOCAL_CSV_PATH}`} download subtle>
                         <DownloadIcon className="h-4 w-4 flex-shrink-0" />
@@ -454,6 +502,18 @@ const DataList = ({ data }) => {
 
          return true
       }).sort((left, right) => {
+         const featuredPriorityDifference = getFeaturedSortPriority(left) - getFeaturedSortPriority(right)
+
+         if (featuredPriorityDifference !== 0) {
+            return featuredPriorityDifference
+         }
+
+         const scorePriorityDifference = getSonoDqsSortPriority(left) - getSonoDqsSortPriority(right)
+
+         if (scorePriorityDifference !== 0) {
+            return scorePriorityDifference
+         }
+
          const priorityDifference = getLicenceSortPriority(left) - getLicenceSortPriority(right)
 
          if (priorityDifference !== 0) {
